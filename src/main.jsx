@@ -1,111 +1,155 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ArrowRight, ArrowUpRight, BatteryCharging, Check, CheckCircle2, ChevronDown, CircleHelp, Clock3, Compass, CreditCard, Gauge, Heart, IndianRupee, Leaf, LocateFixed, LockKeyhole, MapPin, Menu, Minus, Navigation, Plus, PlugZap, Search, ShieldCheck, SlidersHorizontal, Sparkles, Star, UserRound, X, Zap } from 'lucide-react'
-import { isLive, supabase } from './supabase'
+import { ArrowRight, BatteryCharging, Check, CircleHelp, Crosshair, LocateFixed, MapPin, Navigation, Plus, Search, ShieldCheck, Trash2, X, Zap } from 'lucide-react'
+import ChargerMap, { inHyderabad } from './Map'
+import { supabase } from './supabase'
 import './style.css'
 
-const demo = [
-  { id:'demo-1', name:'The Green Garage', host:'Riya M.', area:'Indiranagar', city:'Bengaluru', distance:1.2, price_per_hour:120, connector:'Type 2', power_kw:7.4, rating:4.9, reviews:48, availability:'Available now', theme:'mint', initial:'R', coordinates:[65,42] },
-  { id:'demo-2', name:'Cornerstone Charging', host:'Arjun P.', area:'Koramangala', city:'Bengaluru', distance:2.4, price_per_hour:95, connector:'15A socket', power_kw:3.3, rating:4.8, reviews:32, availability:'Available now', theme:'peach', initial:'A', coordinates:[37,60] },
-  { id:'demo-3', name:'Quiet Lane Plug', host:'Meera S.', area:'Domlur', city:'Bengaluru', distance:3.1, price_per_hour:140, connector:'Type 2', power_kw:7.4, rating:5.0, reviews:21, availability:'Today, 4:00 PM', theme:'lavender', initial:'M', coordinates:[78,72] },
-  { id:'demo-4', name:'Garden Side Charge', host:'Kabir N.', area:'HSR Layout', city:'Bengaluru', distance:4.6, price_per_hour:110, connector:'15A socket', power_kw:3.3, rating:4.9, reviews:17, availability:'Available now', theme:'yellow', initial:'K', coordinates:[24,32] },
-]
-const fmt = n => `₹${Number(n).toLocaleString('en-IN')}`
-const distanceKm = (a,b,c,d) => { const rad=Math.PI/180, dLat=(c-a)*rad, dLon=(d-b)*rad, x=Math.sin(dLat/2)**2+Math.cos(a*rad)*Math.cos(c*rad)*Math.sin(dLon/2)**2; return Math.round(6371*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))*10)/10 }
-const Logo = () => <div className="logo"><span className="logo-mark"><Zap size={18} fill="currentColor" strokeWidth={2.5}/></span><span>co<span className="logo-dot">.</span>charger</span></div>
-const IconBadge = ({icon:Icon, tone='green'}) => <span className={`icon-badge ${tone}`}><Icon size={19} strokeWidth={2.1}/></span>
+const kmBetween = (a, b, c, d) => {
+  const rad = Math.PI / 180
+  const x = Math.sin((c-a)*rad/2)**2 + Math.cos(a*rad)*Math.cos(c*rad)*Math.sin((d-b)*rad/2)**2
+  return Math.round(6371 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x)) * 10) / 10
+}
+const money = value => `₹${Number(value).toLocaleString('en-IN')}`
+const initialForm = { title: '', area: '', plug_type: '15A socket', hourly_rate: '80' }
 
-function App(){
-  const [page,setPage] = useState('home')
-  const [modal,setModal] = useState(null)
-  const [selected,setSelected] = useState(null)
-  const [user,setUser] = useState(null)
-  const [listings,setListings] = useState([])
-  const [query,setQuery] = useState('')
-  const [myLocation,setMyLocation] = useState(null)
-  const [locationNotice,setLocationNotice] = useState('')
-  const [connector,setConnector] = useState('All plugs')
-  const [onlyNow,setOnlyNow] = useState(false)
-  const [hours,setHours] = useState(2)
-  const [message,setMessage] = useState('')
-  const [busy,setBusy] = useState(false)
-  const [mobileMenu,setMobileMenu] = useState(false)
-  const [email,setEmail] = useState('')
-  const [requests,setRequests] = useState([])
-  const [selectedBooking,setSelectedBooking] = useState(null)
-  const [messages,setMessages] = useState([])
-  const [chatInput,setChatInput] = useState('')
-  const [hostForm,setHostForm] = useState({name:'',area:'',city:'Bengaluru',connector:'Type 2',power_kw:'7.4',price_per_hour:'120',description:'',latitude:null,longitude:null})
+function App() {
+  const [user, setUser] = useState(null)
+  const [spots, setSpots] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedId, setSelectedId] = useState(null)
+  const [search, setSearch] = useState('')
+  const [plug, setPlug] = useState('All plugs')
+  const [location, setLocation] = useState(null)
+  const [notice, setNotice] = useState('')
+  const [modal, setModal] = useState(null)
+  const [email, setEmail] = useState('')
+  const [form, setForm] = useState(initialForm)
+  const [pin, setPin] = useState(null)
+  const [pickMode, setPickMode] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [formMessage, setFormMessage] = useState('')
 
-  async function refresh(){
-    if(!supabase) return
-    const {data,error}=await supabase.from('charger_listings').select('id,name,area,city,connector,power_kw,price_per_hour,description,host_id,latitude,longitude').eq('verification_status','verified').eq('is_active',true)
-    if(!error) setListings(data || [])
+  const loadSpots = async () => {
+    if (!supabase) { setLoading(false); setNotice('Supabase is not configured.'); return }
+    const { data, error } = await supabase.from('charger_spots')
+      .select('id,owner_id,title,area,city,latitude,longitude,plug_type,hourly_rate,is_demo')
+      .eq('city', 'Hyderabad')
+    if (error) setNotice(`Could not load spots: ${error.message}`)
+    else setSpots(data || [])
+    setLoading(false)
   }
-  useEffect(()=>{
-    if(!supabase) return
-    supabase.auth.getUser().then(({data})=>setUser(data.user))
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>setUser(session?.user ?? null))
-    refresh()
-    return()=>subscription.unsubscribe()
-  },[])
-  async function refreshRequests(){
-    if(!supabase || !user) return
-    const {data,error}=await supabase.from('booking_requests').select('id,listing_id,driver_id,duration_hours,estimated_amount,platform_fee,status,created_at,charger_listings(name,area,city,host_id)').order('created_at',{ascending:false})
-    if(!error) setRequests(data || [])
+
+  useEffect(() => {
+    loadSpots()
+    if (!supabase) return
+    supabase.auth.getUser().then(({ data }) => setUser(data.user))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user || null))
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const sorted = useMemo(() => spots.map(spot => ({
+    ...spot,
+    distance: location ? kmBetween(location[0], location[1], Number(spot.latitude), Number(spot.longitude)) : null
+  })).filter(spot => {
+    const text = `${spot.title} ${spot.area}`.toLowerCase()
+    return text.includes(search.toLowerCase()) && (plug === 'All plugs' || spot.plug_type === plug)
+  }).sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity) || a.area.localeCompare(b.area)), [spots, location, search, plug])
+
+  const visible = location ? sorted.filter(spot => spot.distance <= 15) : sorted
+  const selected = visible.find(spot => spot.id === selectedId) || null
+  const realCount = spots.filter(spot => !spot.is_demo).length
+
+  const findMe = () => {
+    if (!navigator.geolocation) { setNotice('Your browser cannot provide a location. Browse Hyderabad on the map instead.'); return }
+    setNotice('Finding your location…')
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      if (!inHyderabad(coords.latitude, coords.longitude)) {
+        setLocation(null)
+        setNotice('Your current location is outside Hyderabad. This project shows Hyderabad spots for now.')
+        return
+      }
+      setLocation([coords.latitude, coords.longitude])
+      setNotice('Showing spots within 15 km of you in Hyderabad.')
+    }, () => setNotice('Location access was unavailable. You can still explore Hyderabad on the map.'),
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 })
   }
-  useEffect(()=>{refreshRequests()},[user])
-  const data = listings.length ? listings.map((l,i)=>({...l,host:'Verified host',distance:myLocation && l.latitude != null && l.longitude != null ? distanceKm(myLocation.latitude,myLocation.longitude,Number(l.latitude),Number(l.longitude)) : null,rating:null,reviews:null,availability:'Request a time',theme:['mint','peach','lavender','yellow'][i%4],initial:l.name[0],coordinates:[[65,42],[37,60],[78,72],[24,32]][i%4]})) : demo
-  const isDemo = listings.length===0
-  const filtered=useMemo(()=>data.filter(l=>{
-    const matchQuery=`${l.name} ${l.area} ${l.city}`.toLowerCase().includes(query.toLowerCase())
-    const matchPlug=connector==='All plugs'||l.connector===connector
-    const matchNow=!onlyNow||l.availability==='Available now'
-    return matchQuery&&matchPlug&&matchNow
-  }).sort((a,b)=>(a.distance??Infinity)-(b.distance??Infinity)),[data,query,connector,onlyNow,myLocation])
-  function useLocation(forHost=false){if(!navigator.geolocation){setLocationNotice('Location is unavailable in this browser. Search by neighbourhood instead.');return}navigator.geolocation.getCurrentPosition(({coords})=>{const latitude=Math.round(coords.latitude*100)/100,longitude=Math.round(coords.longitude*100)/100;if(forHost){setHostForm(f=>({...f,latitude,longitude}));setMessage('Approximate location added. Only a rounded neighbourhood position will be shown.')}else{setMyLocation({latitude:coords.latitude,longitude:coords.longitude});setQuery('');setLocationNotice('Showing chargers closest to your current location.') }},(error)=>{const note=error.code===1?'Location access was declined. Search by neighbourhood instead.':'Location could not be found. Search by neighbourhood instead.';if(forHost)setMessage(note);else setLocationNotice(note)}, {enableHighAccuracy:false,timeout:10000,maximumAge:300000})}
-  function navigate(next){setPage(next);setMobileMenu(false);window.scrollTo({top:0,behavior:'smooth'})}
-  function openBooking(l){setSelected(l);setHours(2);setMessage('');setModal('booking')}
-  function requireAuth(next){if(!user){setModal('auth');setMessage('Sign in to continue.');return false}return true}
-  async function signIn(e){e.preventDefault();if(!supabase){setMessage('The database connection is not configured.');return}setBusy(true);const {error}=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin}});setBusy(false);setMessage(error?error.message:'Check your email for a secure sign-in link.')}
-  async function createListing(e){e.preventDefault();if(!requireAuth())return;setBusy(true);const {error}=await supabase.from('charger_listings').insert({host_id:user.id,name:hostForm.name.trim(),area:hostForm.area.trim(),city:hostForm.city.trim(),connector:hostForm.connector,power_kw:Number(hostForm.power_kw),price_per_hour:Number(hostForm.price_per_hour),description:hostForm.description.trim(),latitude:hostForm.latitude,longitude:hostForm.longitude});setBusy(false);setMessage(error?error.message:'Your charger has been submitted for verification. We’ll show it after review.');if(!error)setHostForm({name:'',area:'',city:'Bengaluru',connector:'Type 2',power_kw:'7.4',price_per_hour:'120',description:'',latitude:null,longitude:null})}
-  async function updateRequest(id,status){setBusy(true);const {error}=await supabase.from('booking_requests').update({status}).eq('id',id);setBusy(false);if(error) setMessage(error.message);else refreshRequests()}
-  async function openChat(booking){setSelectedBooking(booking);setMessage('');setChatInput('');setModal('chat');const {data,error}=await supabase.from('booking_messages').select('id,sender_id,body,created_at').eq('booking_id',booking.id).order('created_at');setMessages(error?[]:data||[])}
-  async function sendChat(e){e.preventDefault();if(!chatInput.trim())return;setBusy(true);const {error}=await supabase.from('booking_messages').insert({booking_id:selectedBooking.id,sender_id:user.id,body:chatInput.trim()});setBusy(false);if(error)setMessage(error.message);else{setChatInput('');const {data}=await supabase.from('booking_messages').select('id,sender_id,body,created_at').eq('booking_id',selectedBooking.id).order('created_at');setMessages(data||[])}}
-  async function createBooking(){if(isDemo){setMessage('This is an example listing. Live hosts will appear here after verification.');return}if(!requireAuth())return;setBusy(true);const {error}=await supabase.from('booking_requests').insert({listing_id:selected.id,driver_id:user.id,duration_hours:hours,estimated_amount:selected.price_per_hour*hours,platform_fee:Math.round(selected.price_per_hour*hours*.1)});setBusy(false);setMessage(error?error.message:'Request sent. Track it in My requests and message the host there. Payment is arranged after confirmation.');if(!error)refreshRequests()}
-  const statusLabel = isDemo ? 'Illustrative preview • no live hosts yet' : `${listings.length} verified hosts on Co-Charger`
+
+  const useMyPin = () => {
+    if (!navigator.geolocation) { setFormMessage('Location is unavailable. Pick a point on the map instead.'); return }
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      if (!inHyderabad(coords.latitude, coords.longitude)) { setFormMessage('Only Hyderabad spots can be added for now.'); return }
+      setPin([Math.round(coords.latitude * 1000) / 1000, Math.round(coords.longitude * 1000) / 1000])
+      setFormMessage('Approximate pin added. Coordinates are rounded for privacy.')
+    }, () => setFormMessage('Location access was unavailable. Pick a point on the map instead.'),
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 })
+  }
+
+  const openAdd = () => {
+    setFormMessage('')
+    if (!user) { setModal('login'); return }
+    setModal('add')
+  }
+
+  const handleMapPick = latlng => {
+    if (!pickMode) return
+    if (!inHyderabad(latlng.lat, latlng.lng)) { setNotice('Please choose a point within Hyderabad.'); return }
+    setPin([Math.round(latlng.lat * 1000) / 1000, Math.round(latlng.lng * 1000) / 1000])
+    setPickMode(false)
+    setFormMessage('Approximate pin selected on the map.')
+    setModal('add')
+  }
+
+  const signIn = async event => {
+    event.preventDefault()
+    setBusy(true)
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+    setBusy(false)
+    setFormMessage(error ? error.message : 'Check your email for your sign-in link.')
+  }
+
+  const addSpot = async event => {
+    event.preventDefault()
+    if (!pin) { setFormMessage('Choose an approximate location first.'); return }
+    setBusy(true)
+    const { error } = await supabase.from('charger_spots').insert({
+      owner_id: user.id,
+      title: form.title.trim(),
+      area: form.area.trim(),
+      city: 'Hyderabad',
+      latitude: pin[0], longitude: pin[1],
+      plug_type: form.plug_type,
+      hourly_rate: Number(form.hourly_rate)
+    })
+    setBusy(false)
+    if (error) { setFormMessage(error.message); return }
+    setModal(null)
+    setForm(initialForm)
+    setPin(null)
+    setNotice('Your spot was saved to the Hyderabad map.')
+    loadSpots()
+  }
+
+  const removeSpot = async () => {
+    if (!selected || selected.owner_id !== user?.id) return
+    const { error } = await supabase.from('charger_spots').delete().eq('id', selected.id)
+    if (error) setNotice(error.message)
+    else { setSelectedId(null); setNotice('Your spot was removed.'); loadSpots() }
+  }
 
   return <>
-    <div className="announcement"><Sparkles size={14}/> Your neighbourhood could be your next charging stop. <span>Now building in India</span></div>
-    <header className="header"><div className="nav-shell"><button className="plain logo-button" onClick={()=>navigate('home')} aria-label="Co-Charger home"><Logo/></button><nav className={mobileMenu?'nav-links open':'nav-links'}><button onClick={()=>navigate('explore')} className={page==='explore'?'active':''}>Find a charger</button><button onClick={()=>navigate('how')} className={page==='how'?'active':''}>How it works</button><button onClick={()=>navigate('host')} className={page==='host'?'active':''}>Become a host</button>{user&&<button onClick={()=>navigate('dashboard')} className={page==='dashboard'?'active':''}>My requests</button>}</nav><div className="nav-actions"><button className="text-button" onClick={()=>{setModal('auth');setMessage('')}}>{user?'My account':'Log in'}</button><button className="button button-small" onClick={()=>navigate('explore')}>Explore chargers <ArrowUpRight size={16}/></button></div><button className="menu-button" onClick={()=>setMobileMenu(!mobileMenu)} aria-label="Toggle menu">{mobileMenu?<X/>:<Menu/>}</button></div></header>
-    <main>
-      {page==='home'&&<>
-        <section className="hero"><div className="hero-grid container"><div className="hero-copy"><div className="eyebrow"><span className="eyebrow-line"/> THE NEW WAY TO STAY MOVING</div><h1>Power is closer<br/>than <em>you think.</em></h1><p className="hero-lead">Low on charge? Find a friendly plug around the corner. Co-Charger connects EV drivers with local charging hosts, right when the road gets uncertain.</p><div className="hero-buttons"><button className="button button-large" onClick={()=>navigate('explore')}>Find a charger near me <ArrowRight size={18}/></button><button className="button-outline button-large" onClick={()=>navigate('host')}>List your charger <ArrowUpRight size={17}/></button></div><div className="hero-note"><div className="avatar-stack"><span>R</span><span>A</span><span>M</span></div><span>Built for drivers. Powered by neighbours.</span></div></div><HeroVisual/></div><div className="hero-bottom container"><div><span className="tiny-pulse"/> A MORE CONNECTED WAY TO CHARGE</div><div>Scroll to discover <span className="scroll-arrow">↓</span></div></div></section>
-        <section className="proof-strip"><div className="container proof-grid"><div><IconBadge icon={MapPin}/><span>Discover nearby charging options</span></div><div><IconBadge icon={ShieldCheck}/><span>Hosts reviewed before going live</span></div><div><IconBadge icon={IndianRupee}/><span>Clear hourly pricing upfront</span></div><div><IconBadge icon={Heart}/><span>Good for drivers and neighbours</span></div></div></section>
-        <section className="story-section container"><div className="story-heading"><div><div className="eyebrow">THE IDEA</div><h2>That last 4% shouldn't<br/><em>feel like the end.</em></h2></div><p>Sometimes the closest charging point isn't a station. It's a neighbour's driveway. We're turning spare plugs into a more human charging network.</p></div><div className="story-card"><div className="battery-side"><div className="battery-caption"><span className="red-dot"/> THE MOMENT WE'RE SOLVING</div><div className="battery-drawing"><div className="battery-nub"/><div className="battery-fill"><Zap size={31} fill="currentColor"/></div></div><div className="battery-percent">04<span>%</span></div><p>Battery remaining</p></div><div className="story-arrow"><ArrowRight size={27}/></div><div className="solution-side"><div className="solution-map"><span className="street s1"/><span className="street s2"/><span className="street s3"/><span className="street s4"/><span className="map-route"/><span className="map-dot point-a"><Navigation size={16} fill="currentColor"/></span><span className="map-dot point-b"><Zap size={19} fill="currentColor"/></span></div><div className="solution-caption"><strong>Someone nearby has power.</strong><span>Find them, request a time, keep moving.</span></div></div></div></section>
-        <section className="featured-section"><div className="container"><div className="section-head"><div><div className="eyebrow">FIND YOUR NEXT STOP</div><h2>Nearby feels better.</h2><p>Explore what a neighbourhood charging network could look like.</p></div><button className="link-arrow" onClick={()=>navigate('explore')}>Explore all chargers <ArrowUpRight size={18}/></button></div><div className="listing-grid">{data.slice(0,3).map(l=><ListingCard key={l.id} listing={l} demo={isDemo} onOpen={openBooking}/>)}</div>{isDemo&&<div className="demo-note"><CircleHelp size={16}/> These sample cards illustrate the experience. Real hosts appear after verification.</div>}</div></section>
-        <HowSection onExplore={()=>navigate('explore')}/>
-        <section className="host-banner container"><div className="host-art"><div className="host-orbit orbit-one"/><div className="host-orbit orbit-two"/><div className="house-roof"/><div className="house-body"><span className="house-window"/><span className="house-door"/></div><div className="host-zap"><Zap fill="currentColor"/></div></div><div className="host-banner-copy"><div className="eyebrow light">FOR CHARGER OWNERS</div><h2>Your plug could<br/>power someone's day.</h2><p>Make your home charger available when it suits you. Set a price, review requests, and help someone get back on the road.</p><button className="button white-button" onClick={()=>navigate('host')}>Become a host <ArrowUpRight size={18}/></button></div><span className="banner-flower">✳</span></section>
-        <section className="faq-section container"><div><div className="eyebrow">GOOD TO KNOW</div><h2>Questions, meet answers.</h2></div><Faq/></section>
-      </>}
-      {page==='explore'&&<section className="explore-page container"><div className="explore-top"><div><div className="eyebrow">FIND YOUR NEXT CHARGE</div><h1>Charge around<br/><em>the corner.</em></h1><p>Search neighbourhood chargers and send a request in a few taps.</p></div><div className="explore-badge"><span className="pulse"/> {statusLabel}</div></div><div className="searchbar"><Search size={20}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search a neighbourhood or city" aria-label="Search chargers"/><button onClick={()=>{setQuery('Bengaluru');setMyLocation(null)}}>Bengaluru <MapPin size={16}/></button><button className="near-button" onClick={()=>useLocation()}><LocateFixed size={16}/> Near me</button></div>{locationNotice&&<div className="location-notice">{locationNotice}</div>}<div className="explore-controls"><span><SlidersHorizontal size={17}/> Filters</span>{['All plugs','Type 2','15A socket'].map(c=><button key={c} className={connector===c?'chip selected':'chip'} onClick={()=>setConnector(c)}>{c}</button>)}<button className={onlyNow?'chip selected':'chip'} onClick={()=>setOnlyNow(!onlyNow)}><span className="green-dot"/> Available now</button></div><div className="explore-layout"><div className="results-column"><div className="results-title"><strong>{filtered.length} charging {filtered.length===1?'spot':'spots'}</strong><span>{isDemo?'Example locations in Bengaluru':'Verified listings'}</span></div>{filtered.length?filtered.map(l=><ListingCard key={l.id} listing={l} demo={isDemo} onOpen={openBooking} horizontal/>):<div className="empty-results"><Search size={28}/><h3>No spots match that search.</h3><p>Try another neighbourhood or clear a filter.</p><button className="button-outline" onClick={()=>{setQuery('');setConnector('All plugs');setOnlyNow(false)}}>Clear filters</button></div>}</div><div className="map-panel"><div className="map-pattern"><div className="road road-a"/><div className="road road-b"/><div className="road road-c"/><div className="road road-d"/><div className="road road-e"/><div className="park park-a"/><div className="park park-b"/><div className="water"/>{filtered.map((l,i)=><button key={l.id} style={{left:`${l.coordinates[0]}%`,top:`${l.coordinates[1]}%`}} className="map-price" onClick={()=>openBooking(l)}>{fmt(l.price_per_hour)}</button>)}<div className="you-marker"><Navigation size={16} fill="currentColor"/></div><span className="map-label label-a">INDIRANAGAR</span><span className="map-label label-b">KORAMANGALA</span><span className="map-label label-c">DOMLUR</span></div><div className="map-footer"><LocateFixed size={17}/> {isDemo?'Illustrative map • locations are examples':'Schematic map • ask host for exact location'}</div></div></div></section>}
-      {page==='how'&&<><div className="simple-hero container"><div className="eyebrow">HOW CO-CHARGER WORKS</div><h1>A simpler way to<br/><em>keep going.</em></h1><p>A connection between drivers who need a top-up and people with a charger to share.</p></div><HowSection onExplore={()=>navigate('explore')} expanded/><section className="safety-section container"><div className="safety-copy"><IconBadge icon={ShieldCheck}/><h2>Built around trust,<br/>from the first tap.</h2><p>Hosts submit charger details for review before a listing appears. Drivers can see connector type and hourly pricing before sending a request. Booking details are shared only with the people involved.</p><button className="button" onClick={()=>navigate('explore')}>Explore chargers <ArrowRight size={17}/></button></div><div className="safety-card"><div className="shield-visual"><ShieldCheck size={96} strokeWidth={1.2}/></div><div><CheckCircle2 size={19}/> Host listings reviewed</div><div><CheckCircle2 size={19}/> Price shown before request</div><div><CheckCircle2 size={19}/> Private booking details</div><small>Host review is a platform process, not a guarantee of electrical safety. Check connector compatibility and charging conditions before use.</small></div></section></>}
-      {page==='dashboard'&&<Dashboard user={user} requests={requests} onAuth={()=>{setModal('auth');setMessage('')}} onExplore={()=>navigate('explore')} onChat={openChat} onUpdate={updateRequest} busy={busy}/>}
-      {page==='host'&&<><div className="host-page-hero"><div className="container host-page-grid"><div><div className="eyebrow light">BECOME A CO-CHARGER HOST</div><h1>Good energy<br/>goes both ways.</h1><p>Share your charger when it suits you. Support a driver nearby and earn from the time they use it.</p><button className="button white-button" onClick={()=>{setModal('host');setMessage('')}}>List your charger <ArrowRight size={18}/></button></div><div className="host-page-visual"><div className="host-visual-circle"><PlugZap size={100} strokeWidth={1.3}/></div><div className="floating-earn"><span>YOUR RATE</span><strong>Set your own price</strong><IndianRupee size={19}/></div><div className="floating-time"><Clock3 size={18}/> Your schedule, your choice</div></div></div></div><section className="host-benefits container"><div className="section-head"><div><div className="eyebrow">YOUR SPACE. YOUR RULES.</div><h2>Hosting, made easy.</h2></div></div><div className="benefit-grid"><div><IconBadge icon={IndianRupee}/><h3>Choose your rate</h3><p>Set an hourly price that makes sense for your charger and electricity costs.</p></div><div><IconBadge icon={Clock3} tone="pink"/><h3>Stay in control</h3><p>Review charging requests and agree on a time that works for you.</p></div><div><IconBadge icon={ShieldCheck} tone="yellow"/><h3>Join thoughtfully</h3><p>We review listing details before making a host visible to drivers.</p></div></div><div className="host-last"><div><h2>Ready to put your<br/>charger on the map?</h2><p>Create a listing in minutes. It goes live after review.</p></div><button className="button button-large" onClick={()=>{setModal('host');setMessage('')}}>Start hosting <ArrowRight size={18}/></button></div></section></>}
+    <header className="header"><div className="nav container"><a href="#top" className="brand"><span className="brand-icon"><Zap size={19} fill="currentColor" /></span><span>co<span className="brand-dot">.</span>charger</span></a><div className="nav-middle"><span className="city-dot" /> Hyderabad</div><div className="nav-actions"><button className="nav-login" onClick={() => { setFormMessage(''); setModal('login') }}>{user ? 'My account' : 'Log in'}</button><button className="solid small" onClick={openAdd}><Plus size={17}/> Add a spot</button></div></div></header>
+    <main id="top" className="container">
+      <section className="intro"><div className="intro-copy"><div className="eyebrow"><span/> HYDERABAD PROJECT DEMO</div><h1>Power nearby,<br/><em>when you need it.</em></h1><p>Explore neighbourhood charging cables on a real map. Try your current location to see which spots are closest.</p><div className="intro-actions"><button className="solid" onClick={findMe}><LocateFixed size={18}/> Use my location <ArrowRight size={18}/></button><button className="ghost" onClick={() => document.getElementById('map-section')?.scrollIntoView({ behavior: 'smooth' })}>Explore the map <Navigation size={17}/></button></div></div><div className="intro-card"><span className="intro-card-spark">✳</span><div className="intro-card-icon"><BatteryCharging size={30}/></div><span className="intro-card-label">CITY IN FOCUS</span><strong>Hyderabad</strong><p>{spots.length} spots on the map <span>•</span> {realCount} community {realCount === 1 ? 'spot' : 'spots'}</p><div className="intro-card-bottom"><span className="pulse"/> Sample hosts are marked as demo</div></div></section>
+      <section id="map-section" className="finder"><div className="finder-header"><div><div className="eyebrow"><span/> EXPLORE CHARGERS</div><h2>Find a plug close to you.</h2></div><div className="finder-city"><MapPin size={16}/> Hyderabad only, for now</div></div><div className="finder-tools"><div className="search-box"><Search size={18}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search an area, like Gachibowli" aria-label="Search charger spots"/></div><div className="filter-pills">{['All plugs','Type 2','15A socket','Portable EVSE'].map(option => <button key={option} className={plug === option ? 'pill active' : 'pill'} onClick={() => setPlug(option)}>{option}</button>)}</div><button className="location-quick" onClick={findMe}><Crosshair size={17}/> Near me</button></div>
+        {notice && <div className="notice"><CircleHelp size={16}/>{notice}<button onClick={() => setNotice('')} aria-label="Dismiss notice"><X size={14}/></button></div>}
+        <div className="finder-grid"><div className="map-wrap"><ChargerMap spots={visible} selectedId={selectedId} onSelect={setSelectedId} userLocation={location} pickMode={pickMode} onPick={handleMapPick}/>{pickMode && <div className="pick-banner"><MapPin size={18}/> Tap the map to place your approximate pin <button onClick={() => { setPickMode(false); setModal('add') }}>Cancel</button></div>}<div className="map-legend"><span className="legend-user"/> You <span className="legend-spot"/> Charger spot</div></div><aside className="spot-panel"><div className="panel-heading"><div><strong>{loading ? 'Loading…' : `${visible.length} ${location ? 'spots nearby' : 'spots in Hyderabad'}`}</strong><small>{location ? 'Sorted by distance from you' : 'Hyderabad neighbourhoods'}</small></div><button onClick={() => { setLocation(null); setSearch(''); setPlug('All plugs'); setSelectedId(null); setNotice('Showing all Hyderabad spots.') }}>Reset</button></div><div className="spots-scroll">{visible.length ? visible.map(spot => <button className={selectedId === spot.id ? 'spot-card selected' : 'spot-card'} key={spot.id} onClick={() => setSelectedId(spot.id)}><span className="spot-card-top"><span className="spot-symbol"><Zap size={18} fill="currentColor" /></span><span className="spot-info"><strong>{spot.title}</strong><small><MapPin size={13}/>{spot.area}, Hyderabad</small></span><span className="spot-rate"><b>{money(spot.hourly_rate)}</b><small>/hr</small></span></span><span className="spot-card-bottom"><span className={spot.is_demo ? 'tag demo' : 'tag live'}>{spot.is_demo ? 'Demo host' : 'Community spot'}</span><span className="plug-label">{spot.plug_type}</span>{spot.distance !== null && <span className="distance">{spot.distance} km away</span>}</span></button>) : <div className="empty"><Search size={26}/><strong>No spots match yet</strong><p>Try another plug type or area.</p></div>}</div>{selected && <div className="selected-detail"><div><span className={selected.is_demo ? 'tag demo' : 'tag live'}>{selected.is_demo ? 'Sample location' : 'Community location'}</span><strong>{selected.title}</strong><p>{selected.plug_type} · {money(selected.hourly_rate)} per hour</p><small>{selected.is_demo ? 'This is a demo host for your project. No one is available to contact here.' : 'Approximate pin. Confirm the exact charging details with the owner.'}</small></div>{selected.owner_id === user?.id && !selected.is_demo && <button className="delete-button" onClick={removeSpot} aria-label="Remove your spot"><Trash2 size={16}/></button>}</div>}</aside></div>
+      </section>
+      <section className="bottom-strip"><div className="bottom-icon"><ShieldCheck size={22}/></div><div><strong>Simple on purpose.</strong><p>Supabase saves logins and community spot locations. Demo hosts and their hourly rates are just examples. No booking or payment flow.</p></div><button className="text-action" onClick={openAdd}>Add your cable <ArrowRight size={16}/></button></section>
     </main>
-    <footer className="footer"><div className="container footer-top"><div><Logo/><p>Powering everyday journeys,<br/>one neighbourhood at a time.</p></div><div className="footer-links"><button onClick={()=>navigate('explore')}>Find a charger</button><button onClick={()=>navigate('host')}>Become a host</button><button onClick={()=>navigate('how')}>How it works</button></div><div className="footer-statement">Better together.<br/><em>Further together.</em></div></div><div className="container footer-bottom"><span>© 2026 Co-Charger. Made for the road ahead.</span><span>Built with care in India <Heart size={14} fill="currentColor"/></span></div></footer>
-    <React.Fragment>{modal&&<div className="modal-backdrop" onClick={()=>{setModal(null);setMessage('')}}><div className="modal" onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true"><button className="modal-close" onClick={()=>{setModal(null);setMessage('')}} aria-label="Close"><X size={19}/></button>{modal==='auth'&&<><IconBadge icon={LockKeyhole}/><h2>{user?'Your account':'Welcome to Co-Charger'}</h2><p>{user?`Signed in as ${user.email}`:'Sign in with a secure email link to request a charge or list your plug.'}</p>{user?<><button className="button modal-main" onClick={()=>{setModal(null);navigate('dashboard')}}>View my requests <ArrowRight size={17}/></button><button className="button-outline modal-main" onClick={async()=>{await supabase.auth.signOut();setModal(null);setRequests([])}}>Sign out</button></>:<form onSubmit={signIn}><label>Email address<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/></label><button disabled={busy} className="button modal-main">{busy?'Sending…':'Send sign-in link'} <ArrowRight size={17}/></button></form>}</>}{modal==='booking'&&selected&&<><div className="modal-kicker"><Zap size={16}/> CHARGING REQUEST</div><h2>{selected.name}</h2><p><MapPin size={15}/> {selected.area}, {selected.city} · {selected.connector} · {selected.power_kw} kW</p><div className="booking-hours"><span>How long would you like to charge?</span><div><button onClick={()=>setHours(Math.max(1,hours-1))} aria-label="Reduce hours"><Minus size={16}/></button><strong>{hours} {hours===1?'hour':'hours'}</strong><button onClick={()=>setHours(Math.min(12,hours+1))} aria-label="Increase hours"><Plus size={16}/></button></div></div><div className="price-row"><span>Estimated charging price</span><strong>{fmt(selected.price_per_hour*hours)}</strong></div><div className="price-row muted"><span>Platform fee estimate (10%)</span><span>{fmt(Math.round(selected.price_per_hour*hours*.1))}</span></div><div className="price-total"><span>Estimated total</span><strong>{fmt(selected.price_per_hour*hours+Math.round(selected.price_per_hour*hours*.1))}</strong></div><button disabled={busy} className="button modal-main" onClick={createBooking}>{busy?'Sending…':'Request this charger'} <ArrowRight size={17}/></button><small>Request only. No payment is collected here; time, energy use and payment need host confirmation.</small></>}{modal==='host'&&<><div className="modal-kicker"><PlugZap size={16}/> SHARE YOUR CHARGER</div><h2>List your charging spot</h2><p>Tell drivers what you offer. We review listings before they appear.</p><form className="host-form" onSubmit={createListing}><label>Listing name<input required value={hostForm.name} onChange={e=>setHostForm({...hostForm,name:e.target.value})} placeholder="e.g. The Green Garage"/></label><div className="form-grid"><label>Neighbourhood<input required value={hostForm.area} onChange={e=>setHostForm({...hostForm,area:e.target.value})} placeholder="Indiranagar"/></label><label>City<input required value={hostForm.city} onChange={e=>setHostForm({...hostForm,city:e.target.value})}/></label></div><div className="form-grid"><label>Connector<select value={hostForm.connector} onChange={e=>setHostForm({...hostForm,connector:e.target.value})}><option>Type 2</option><option>15A socket</option><option>CCS2</option></select></label><label>Power (kW)<input required type="number" min="1" max="50" step="0.1" value={hostForm.power_kw} onChange={e=>setHostForm({...hostForm,power_kw:e.target.value})}/></label></div><label>Price per hour (₹)<input required type="number" min="1" max="10000" value={hostForm.price_per_hour} onChange={e=>setHostForm({...hostForm,price_per_hour:e.target.value})}/></label><div className="location-picker"><div><strong>Approximate map location</strong><small>{hostForm.latitude!=null?`${hostForm.latitude}, ${hostForm.longitude} · rounded for privacy`:'Optional · helps nearby drivers find you'}</small></div><button type="button" className="button-outline" onClick={()=>useLocation(true)}><LocateFixed size={15}/> Use location</button></div><label>Helpful details<textarea value={hostForm.description} onChange={e=>setHostForm({...hostForm,description:e.target.value})} placeholder="Parking access, cable availability, suitable hours…"/></label><button disabled={busy} className="button modal-main">{busy?'Submitting…':'Submit for review'} <ArrowRight size={17}/></button></form></>}{modal==='chat'&&selectedBooking&&<><div className="modal-kicker"><Zap size={16}/> PRIVATE CONVERSATION</div><h2>{selectedBooking.charger_listings?.name}</h2><p>Arrange the time, parking access and payment directly with {selectedBooking.driver_id===user?.id?'your host':'your driver'}.</p><div className="chat-thread">{messages.length?messages.map(m=><div key={m.id} className={m.sender_id===user?.id?'chat-bubble mine':'chat-bubble'}><span>{m.sender_id===user?.id?'You':'Other person'}</span>{m.body}</div>):<div className="chat-empty">No messages yet. Say hello and agree on the details.</div>}</div><form className="chat-compose" onSubmit={sendChat}><input maxLength={1000} value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Write a message…" aria-label="Write a message"/><button className="button" disabled={busy||!chatInput.trim()}>Send</button></form></>}{message&&<div className="modal-message">{message}</div>}</div></div>}</React.Fragment>
+    <footer className="footer"><div className="container"><span>co<span className="brand-dot">.</span>charger</span><span>A Hyderabad project demo · Map data © OpenStreetMap contributors</span></div></footer>
+    {modal && <div className="modal-backdrop" onClick={() => setModal(null)}><div className="modal" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)} aria-label="Close"><X size={19}/></button>{modal === 'login' ? <><span className="modal-icon"><Zap size={21}/></span><h2>{user ? 'Your account' : 'Log in to Co-Charger'}</h2><p>{user ? `Signed in as ${user.email}` : 'Enter your email to get a secure sign-in link. No password needed.'}</p>{user ? <><button className="solid full" onClick={() => { setModal('add'); setFormMessage('') }}>Add my charger spot <ArrowRight size={17}/></button><button className="ghost full" onClick={async () => { await supabase.auth.signOut(); setModal(null) }}>Sign out</button></> : <form onSubmit={signIn}><label>Email address<input required type="email" placeholder="you@example.com" value={email} onChange={event => setEmail(event.target.value)}/></label><button className="solid full" disabled={busy}>{busy ? 'Sending…' : 'Send sign-in link'} <ArrowRight size={17}/></button></form>}</> : <><span className="modal-icon"><MapPin size={22}/></span><h2>Add your cable spot</h2><p>Just the basics. Your pin is rounded to an approximate location on the public map.</p><form onSubmit={addSpot}><label>Spot name<input required minLength={3} maxLength={80} placeholder="My apartment charging cable" value={form.title} onChange={event => setForm({ ...form, title: event.target.value })}/></label><label>Hyderabad area<input required minLength={2} maxLength={80} placeholder="e.g. Kondapur" value={form.area} onChange={event => setForm({ ...form, area: event.target.value })}/></label><div className="form-two"><label>Plug type<select value={form.plug_type} onChange={event => setForm({ ...form, plug_type: event.target.value })}><option>15A socket</option><option>Type 2</option><option>Portable EVSE</option></select></label><label>Demo rate / hour (₹)<input required type="number" min="1" max="999" value={form.hourly_rate} onChange={event => setForm({ ...form, hourly_rate: event.target.value })}/></label></div><div className="pin-choice"><div><strong>Approximate pin</strong><small>{pin ? `${pin[0]}, ${pin[1]}` : 'Choose a point in Hyderabad'}</small></div><button type="button" onClick={useMyPin}><LocateFixed size={15}/> Use my location</button><button type="button" onClick={() => { setModal(null); setPickMode(true); setFormMessage('') }}><MapPin size={15}/> Pick on map</button></div><button className="solid full" disabled={busy || !pin}>{busy ? 'Saving…' : 'Save spot'} <Check size={17}/></button></form></>}{formMessage && <div className="form-message">{formMessage}</div>}</div></div>}
   </>
 }
-function Dashboard({user,requests,onAuth,onExplore,onChat,onUpdate,busy}){
-  const outgoing=requests.filter(r=>r.driver_id===user?.id)
-  const incoming=requests.filter(r=>r.driver_id!==user?.id)
-  return <section className="dashboard-page container"><div className="eyebrow">YOUR CO-CHARGER SPACE</div><h1>Stay in the loop.</h1><p>Keep track of every charge request and talk directly with the other person.</p>{!user?<div className="dashboard-empty"><LockKeyhole size={28}/><h3>Sign in to see your requests</h3><button className="button" onClick={onAuth}>Log in <ArrowRight size={16}/></button></div>:<><div className="dashboard-section"><h2>Charging requests <span>{outgoing.length}</span></h2>{outgoing.length?outgoing.map(r=><RequestRow key={r.id} r={r} type="driver" onChat={onChat} onUpdate={onUpdate} busy={busy}/>):<div className="dashboard-empty"><BatteryCharging size={28}/><h3>No charging requests yet</h3><p>Find a nearby host and request your first top-up.</p><button className="button-outline" onClick={onExplore}>Explore chargers <ArrowRight size={16}/></button></div>}</div><div className="dashboard-section"><h2>Hosting requests <span>{incoming.length}</span></h2>{incoming.length?incoming.map(r=><RequestRow key={r.id} r={r} type="host" onChat={onChat} onUpdate={onUpdate} busy={busy}/>):<div className="dashboard-empty"><PlugZap size={28}/><h3>No incoming requests</h3><p>Requests for your approved listing will appear here.</p></div>}</div></>}</section>
-}
-function RequestRow({r,type,onChat,onUpdate,busy}){return <article className="request-row"><div className="request-icon"><Zap size={22} fill="currentColor"/></div><div className="request-info"><div className="request-title"><h3>{r.charger_listings?.name||'Charging spot'}</h3><span className={`status ${r.status}`}>{r.status}</span></div><p>{r.charger_listings?.area}, {r.charger_listings?.city} · {r.duration_hours} {r.duration_hours===1?'hour':'hours'} · {fmt(r.estimated_amount+r.platform_fee)} estimated</p><small>{new Date(r.created_at).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}</small></div><div className="request-actions"><button className="button-outline" onClick={()=>onChat(r)}>Message <ArrowUpRight size={15}/></button>{r.status==='pending'&&(type==='host'?<><button disabled={busy} className="button" onClick={()=>onUpdate(r.id,'accepted')}>Accept</button><button disabled={busy} className="subtle-button" onClick={()=>onUpdate(r.id,'declined')}>Decline</button></>:<button disabled={busy} className="subtle-button" onClick={()=>onUpdate(r.id,'cancelled')}>Cancel</button>)}</div></article>}
-function HeroVisual(){return <div className="hero-visual"><div className="visual-glow"/><div className="hero-orbit orbit-a"/><div className="hero-orbit orbit-b"/><div className="float-pill float-top"><span className="float-icon"><MapPin size={19} fill="currentColor"/></span><span><strong>Charger nearby</strong><small>Just around the corner</small></span><span className="pill-spark">✳</span></div><div className="phone"><div className="phone-top"><div className="phone-time">9:41</div><div className="phone-cam"/><div className="phone-signal">●●●</div></div><div className="phone-app"><div className="phone-app-head"><span><Zap size={14} fill="currentColor"/> co.charger</span><span className="mini-profile">N</span></div><div className="phone-intro">Good morning, Nisha <span>☀</span><h3>Let's get you<br/>charged up.</h3></div><div className="phone-search"><Search size={13}/> Where do you need power?</div><div className="phone-map"><div className="gridroad r1"/><div className="gridroad r2"/><div className="gridroad r3"/><div className="gridroad r4"/><span className="phone-park"/><span className="pin one"><Zap size={14} fill="currentColor"/></span><span className="pin two"><Zap size={14} fill="currentColor"/></span><span className="pin three"><Zap size={14} fill="currentColor"/></span><span className="my-location"><Navigation size={12} fill="currentColor"/></span></div><div className="phone-card"><div className="phone-card-icon"><PlugZap size={19}/></div><div><b>The Green Garage</b><small>1.2 km away · Type 2</small></div><strong>₹120<small>/hr</small></strong></div><div className="phone-tabs"><span><Compass size={13}/> Explore</span><span><Heart size={13}/> Saved</span><span><UserRound size={13}/> Profile</span></div></div></div><div className="float-pill float-bottom"><div className="charge-ring"><BatteryCharging size={20}/></div><span><small>Battery anxiety?</small><strong>We've got you.</strong></span><span className="float-check"><Check size={14}/></span></div><div className="hero-star">✳</div></div>}
-function ListingCard({listing:l,demo,onOpen,horizontal=false}){return <article className={`listing-card ${horizontal?'horizontal':''}`}><div className={`listing-art ${l.theme}`}><div className="art-grid"/><div className="art-sun"/><div className="art-house"><div className="art-roof"/><div className="art-wall"><span/><span/></div></div><div className="art-charger"><Zap size={22} fill="currentColor"/></div><span className="verified-tag"><ShieldCheck size={13}/> {demo?'Example host':'Verified host'}</span></div><div className="listing-content"><div className="listing-line"><span><MapPin size={13}/> {l.area}, {l.city}</span>{l.distance&&<span>{l.distance} km away</span>}</div><h3>{l.name}</h3><div className="listing-host"><span className="host-avatar">{l.initial}</span> Hosted by {l.host} {l.rating&&<span className="rating"><Star size={13} fill="currentColor"/> {l.rating} <small>({l.reviews})</small></span>}</div><div className="listing-meta"><span><PlugZap size={15}/> {l.connector}</span><span><Gauge size={15}/> {l.power_kw} kW</span></div><div className="listing-foot"><div><strong>{fmt(l.price_per_hour)}</strong><span> / hour</span></div><button onClick={()=>onOpen(l)}>View spot <ArrowUpRight size={17}/></button></div></div></article>}
-function HowSection({onExplore,expanded=false}){return <section className={`how-section ${expanded?'expanded':''}`}><div className="container"><div className="section-head centered"><div className="eyebrow">THREE STEPS. ONE SMOOTHER JOURNEY.</div><h2>Charge like you belong.</h2><p>Simple for drivers. Flexible for hosts. Better for the journey.</p></div><div className="steps-grid"><div className="step"><div className="step-num">01</div><div className="step-icon"><Search size={32}/></div><h3>Find a nearby spot</h3><p>Browse chargers by location, connector and upfront hourly price.</p></div><div className="step"><div className="step-num">02</div><div className="step-icon pink"><Clock3 size={32}/></div><h3>Request a time</h3><p>Choose how long you need and send a request to the host.</p></div><div className="step"><div className="step-num">03</div><div className="step-icon yellow"><BatteryCharging size={32}/></div><h3>Plug in & go</h3><p>Agree on the details with your host, top up and get back out there.</p></div></div>{expanded&&<button className="button how-cta" onClick={onExplore}>Find a charger <ArrowRight size={18}/></button>}</div></section>}
-function Faq(){const [open,setOpen]=useState(0);const items=[['Can I use any home charger?','Check your vehicle’s connector, supported charging power and parking access before requesting. The listing shows charger details, and the host confirms arrangements.'],['How do hosts get verified?','New listings start in a pending state. Co-Charger reviews the submitted host and charger details before publishing a listing.'],['When do I pay?','This first version sends booking requests and shows an estimate. Online payment is not enabled yet; confirm payment directly with the host before charging.']];return <div className="faq-list">{items.map(([q,a],i)=><div key={q} className={`faq-item ${open===i?'open':''}`}><button onClick={()=>setOpen(open===i?-1:i)} aria-expanded={open===i}><span>{q}</span>{open===i?<Minus size={18}/>:<Plus size={18}/>}</button>{open===i&&<p>{a}</p>}</div>)}</div>}
 
-createRoot(document.getElementById('root')).render(<App/>)
+createRoot(document.getElementById('root')).render(<App />)
