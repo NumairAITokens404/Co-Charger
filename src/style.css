@@ -102,3 +102,85 @@ body{background:var(--surface);color:var(--ink);transition:background .35s,color
 .footer .brand-word .brand-dot{color:#a6ddec}
 .footer .brand-mark svg{width:27px;height:27px}
 @media(max-width:650px){.brand-lockup{gap:7px}.brand-mark{width:33px;height:33px;border-radius:9px}.brand-mark svg{width:25px;height:25px}.brand-word{font-size:19px}.footer .brand-word,.footer .brand-word .brand-dot{font-size:19px}}
+
+/* Let the car and its headline form one responsive composition. */
+.hero-visual{display:contents}
+@media(max-width:950px){
+  .intro{display:flex;flex-direction:column;gap:24px;min-height:0;padding:38px 0 46px}
+  .hero-visual{display:flex;position:relative;align-items:center;justify-content:center;isolation:isolate;padding:92px 0 98px}
+  .intro .hero-center{top:32px;font-size:clamp(54px,9vw,82px)}
+  .intro :is(.hero-left,.hero-right){top:auto;bottom:0;font-size:clamp(30px,4.6vw,44px)}
+  .car-stage{position:relative;top:auto;left:auto;transform:none;width:min(520px,calc(100% - 16px));flex:none}
+  .intro-copy{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+  .intro p,.intro-actions{position:static;margin:0}
+  .intro p{max-width:310px}
+  .intro-actions{display:flex;flex:none;gap:9px}
+  .intro-actions button{min-height:46px}
+  .finder-grid{grid-template-columns:1fr;height:auto;gap:14px}
+  .map-wrap{height:440px}
+  .spot-panel{height:530px}
+}
+@media(max-width:650px){
+  .header{height:auto}
+  .nav{flex-wrap:wrap;gap:9px;padding:10px 0}
+  .nav .brand{flex:1 1 100%}
+  .nav-actions{width:100%;display:flex;justify-content:space-between;gap:10px}
+  .nav-actions .solid.small{order:0;min-height:40px;padding:9px 14px;font-size:11px;white-space:nowrap}
+  .theme-toggle{order:1;width:40px;height:40px;flex:none}
+  .nav-profile{order:2;min-height:40px;max-width:130px}
+  .profile-avatar{width:35px;height:35px}
+  .profile-name{max-width:70px}
+  .intro{gap:25px;padding:26px 0 38px}
+  .hero-visual{padding:78px 0 82px}
+  .intro .hero-center{top:21px;font-size:clamp(38px,10vw,58px)}
+  .intro :is(.hero-left,.hero-right){bottom:0;font-size:clamp(23px,6.2vw,31px)}
+  .intro-copy{display:flex;flex-direction:column;align-items:stretch;gap:22px}
+  .intro p{max-width:36rem;font-size:13px;line-height:1.6}
+  .intro-actions{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .intro-actions button{min-width:0;min-height:46px;padding:10px 8px;font-size:11px;gap:6px;white-space:nowrap}
+  .intro-actions button svg{width:16px;height:16px;flex:none}
+  .finder{scroll-margin-top:120px;padding-top:34px;padding-bottom:45px}
+  .finder-header h2{font-size:clamp(25px,7vw,32px)}
+  .finder-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .search-box,.filter-pills{grid-column:1/-1;min-width:0;width:100%;flex-basis:auto}
+  .search-box{height:46px}
+  .search-box input{font-size:16px}
+  .filter-pills{overflow-x:auto;scrollbar-width:thin;padding-bottom:3px}
+  .pill{flex:none;min-height:39px;padding:9px 13px;font-size:11px}
+  .location-quick{min-width:0;min-height:44px;height:auto;justify-content:center;padding:8px 9px;font-size:11px}
+  .map-wrap{height:min(55vh,430px);min-height:320px}
+  .spot-panel{height:min(64vh,560px);min-height:440px}
+  .spots-scroll{scrollbar-width:auto;-webkit-overflow-scrolling:touch}
+  .spot-card{padding:13px}
+  .spot-info strong{font-size:12px}
+  .spot-info small{font-size:11px}
+  .spot-rate b{font-size:12px}
+  .spot-card-bottom{flex-wrap:wrap}
+  .distance{margin-left:auto}
+  .modal-backdrop{padding:12px}
+  .modal{width:100%;max-height:calc(100dvh - 24px);padding:24px 20px;border-radius:18px;overscroll-behavior:contain}
+  .modal h2{padding-right:24px}
+  .modal label{font-size:12px}
+  .modal input,.modal select,.modal textarea{min-height:44px;font-size:16px}
+  .modal .phone-input input{min-height:44px}
+  .modal .solid,.modal .ghost{min-height:46px}
+  .footer .container{gap:12px}
+  .footer .container>span{line-height:1.5}
+}
+@media(max-width:390px){
+  .nav-actions{gap:6px}
+  .nav-actions .solid.small{padding:8px 10px}
+  .nav-profile{gap:5px}
+  .profile-chevron{display:none}
+  .intro-actions{grid-template-columns:1fr}
+  .intro-actions button{justify-content:center}
+  .map-legend{font-size:9px;padding:7px 9px}
+  .form-two{grid-template-columns:1fr}
+}
+@media(min-width:651px) and (max-width:950px){
+  .finder-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .search-box,.filter-pills{grid-column:1/-1;min-width:0;width:100%;flex-basis:auto}
+  .filter-pills{overflow-x:auto;padding-bottom:3px}
+  .pill{flex:none;min-height:40px}
+  .location-quick{justify-content:center;min-height:44px}
+}
