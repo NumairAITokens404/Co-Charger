@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 import { ArrowRight, ChevronDown, Moon, Sun, Check, CircleHelp, Crosshair, LocateFixed, MapPin, Navigation, Plus, Search, Trash2, UserRound, X, Zap } from 'lucide-react'
 import ChargerMap, { inIndiaCoverage } from './Map'
 import CarScene from './CarScene'
@@ -47,10 +48,18 @@ function App() {
   const [dark, setDark] = useState(() => {
     try { return (localStorage.getItem('cocharger-theme') || 'dark') === 'dark' } catch { return true }
   })
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light'
     try { localStorage.setItem('cocharger-theme', dark ? 'dark' : 'light') } catch {}
   }, [dark])
+  const toggleTheme = () => {
+    const changeTheme = () => flushSync(() => setDark(current => !current))
+    if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      changeTheme()
+      return
+    }
+    document.startViewTransition(changeTheme)
+  }
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [profileDraft, setProfileDraft] = useState(emptyProfile)
@@ -245,7 +254,7 @@ function App() {
   }
 
   return <>
-    <header className="header"><div className="nav container"><a href="#top" className="brand" aria-label="Co-Charger home"><Logo /></a><div className="nav-actions"><button className="theme-toggle" onClick={() => setDark(!dark)} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Switch to light mode" : "Switch to dark mode"}>{dark ? <Sun size={19}/> : <Moon size={19}/>}</button><button className="solid small" onClick={openAdd}><Plus size={17}/> Add a spot</button><button className="nav-profile" onClick={() => { setFormMessage(''); setModal('login') }}><span className="profile-avatar"><UserRound size={17}/></span><span className="profile-name">{user ? (profile?.first_name || 'Profile') : 'Log in'}</span><ChevronDown className="profile-chevron" size={14}/></button></div></div></header>
+    <header className="header"><div className="nav container"><a href="#top" className="brand" aria-label="Co-Charger home"><Logo /></a><div className="nav-actions"><button className="theme-toggle" onClick={toggleTheme} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Switch to light mode" : "Switch to dark mode"}>{dark ? <Sun size={19}/> : <Moon size={19}/>}</button><button className="solid small" onClick={openAdd}><Plus size={17}/> Add a spot</button><button className="nav-profile" onClick={() => { setFormMessage(''); setModal('login') }}><span className="profile-avatar"><UserRound size={17}/></span><span className="profile-name">{user ? (profile?.first_name || 'Profile') : 'Log in'}</span><ChevronDown className="profile-chevron" size={14}/></button></div></div></header>
     <main id="top" className="container">
       <section className="intro"><div className="hero-visual"><h1 className="hero-lines"><span className="hero-left">Find<br/>power.</span><span className="hero-center">KEEP MOVING</span><span className="hero-right">Drive<br/>farther.</span></h1><CarScene dark={dark}/></div><div className="intro-copy"><p>Find a little extra power, anywhere in India. Try your current location to see which spots are closest.</p><div className="intro-actions"><button className="solid" onClick={findMe}><LocateFixed size={18}/> Use my location <ArrowRight size={18}/></button><button className="ghost" onClick={() => document.getElementById('map-section')?.scrollIntoView({ behavior: 'smooth' })}>Explore the map <Navigation size={17}/></button></div></div></section>
       <section id="map-section" className="finder"><div className="finder-header"><div><h2>Find a plug close to you.</h2></div></div><div className="finder-tools"><div className="search-box"><Search size={18}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search a city or area, like Mumbai" aria-label="Search charger spots"/></div><div className="filter-pills">{['All plugs','Type 2','15A socket','Portable EVSE'].map(option => <button key={option} className={plug === option ? 'pill active' : 'pill'} onClick={() => setPlug(option)}>{option}</button>)}</div><button className="location-quick" onClick={findMe}><Crosshair size={17}/> Near me</button><button className="location-quick" onClick={chooseOnMap}><MapPin size={17}/> Choose on map</button></div>

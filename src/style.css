@@ -184,3 +184,13 @@ body{background:var(--surface);color:var(--ink);transition:background .35s,color
   .pill{flex:none;min-height:40px}
   .location-quick{justify-content:center;min-height:44px}
 }
+
+/* Crossfade complete theme snapshots so every surface changes together. */
+body,.beam-svg{transition:none}
+.solid,.ghost,.nav-profile{transition:transform .2s ease}
+@media (prefers-reduced-motion: no-preference){
+  ::view-transition-old(root),::view-transition-new(root){
+    animation-duration:320ms;
+    animation-timing-function:ease-in-out;
+  }
+}
