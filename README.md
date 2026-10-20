@@ -24,7 +24,12 @@ The branded **Confirm sign up** and **Magic link or OTP** HTML is kept in `supab
 
 A visitor can browse the map without logging in. Click **Use my location** to sort spots within 15 km. If browser location is denied or unavailable, click **Choose on map** and tap an India map point to get the same nearby sorting. The map covers India, including its islands. Coordinate validation uses a broad coverage box, not exact national boundaries. After signing in, users can save their profile and add or remove their own spot. Host pins are rounded to three decimals before storage, so the map does not expose an exact home address. Profile addresses and phone numbers are never shown on the public map.
 
-The app is a local npm project. When ready for Vercel, use the repository root as the project root, `npm run build` as the build command, and `dist` as the output directory. Add the same two `VITE_` variables in Vercel and add the future Vercel origin to Supabase Auth redirect URLs.
+## Deploy on Vercel
+
+1. In Vercel, choose **Add New → Project**, import the `NumairAITokens404/Co-Charger` GitHub repository, and keep **Root Directory** at the repository root (`./`). The checked-in `vercel.json` selects Vite, runs `npm run build`, and serves `dist`.
+2. Before clicking **Deploy**, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` under **Environment Variables**. Copy their values from your local `.env.local` or Supabase project settings. Set them for **Production** and **Preview** if you want preview deployments to work. These are browser-facing values; never add a Supabase service-role key or Gmail app password to Vercel's Vite variables.
+3. Deploy the `main` branch. Once Vercel gives you the production URL, open Supabase **Authentication → URL Configuration**. Set **Site URL** to that production URL and add the exact production URL under **Redirect URLs**. Keep your local URL there if you still use local sign-in. If you use Vercel preview deployments for sign-in, add a preview URL pattern scoped to your Vercel account or team as described in the Supabase docs.
+4. Open the deployed site and test the map, theme switch, and email sign-in. The sign-in link should return to the deployed origin. If you later add a custom domain, update the Supabase Site URL and redirect allow list to include it.
 
 Map tiles come from OpenStreetMap's standard tile service with visible attribution. This is suitable for a small project; a larger public service should choose tile hosting with a service agreement.
 
